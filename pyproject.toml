@@ -1,0 +1,14 @@
+# Репо-конфиг тулинга. Не устанавливаемый пакет: рантайм ставится на хост
+# install.sh'ом из srv_explore/requirements.txt.
+
+[tool.ruff]
+# src-раскладка srv_explore: без этого isort считает пакет сторонним и тасует импорты
+src = [".", "srv_explore/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "srv_explore/src"]
+addopts = "--strict-markers --import-mode=importlib"

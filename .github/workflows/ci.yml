@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Lint (ruff)
+        run: |
+          pip install --quiet ruff
+          ruff check .
+          ruff format --check .
+
+      - name: Tests
+        run: |
+          pip install --quiet pytest -r srv_explore/requirements.txt
+          pytest -q

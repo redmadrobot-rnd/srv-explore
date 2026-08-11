@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>srv-explore · admin</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/ui.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>srv-explore <span class="dot">·</span> admin</h1>
+    <span id="chips" style="display:none">
+      <span id="chip-fs" class="chip"><span class="dotc">●</span>FileSystem: <b>…</b></span>
+      <span id="chip-net" class="chip"><span class="dotc">●</span>Network: <b>…</b></span>
+    </span>
+  </header>
+  <p class="sub">Управление доступом и плагинами — без SSH к серверу.
+    Спросить сервер — на <a href="/">странице агента</a>, тем же админ-токеном.</p>
+
+  <div class="card bar">
+    <label>Админ-токен <input id="admtok" type="password" placeholder="adm_…" size="32"></label>
+    <button class="primary" onclick="saveToken()">Войти</button>
+    <button onclick="forgetToken()">Выйти</button>
+    <span id="authmsg" class="muted"></span>
+  </div>
+
+  <div id="app" style="display:none">
+    <h2>Пользователи <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">— ключ + ссылка, токен инженер получает сам</span></h2>
+    <div class="card">
+      <div class="bar">
+        <input id="lbl" placeholder="кому / зачем (label)" size="20">
+        <input id="pubkey" placeholder="SSH public key (ssh-ed25519 AAAA…)" style="flex:1;min-width:260px">
+        <button class="primary" onclick="addUser()">Добавить</button>
+      </div>
+      <div id="issued"></div>
+      <div class="gap tbl-card">
+        <table id="usertbl"><thead><tr><th>label</th><th>ключ</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <h2>Плагины <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">— Install настраивает доступ, тумблер выдаёт его агенту</span></h2>
+    <div class="card tbl-card">
+      <table id="plugtbl"><thead><tr><th>плагин</th><th>что даёт</th><th>установка</th><th>агенту</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <h2>Настройки <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">— куда агенту можно наружу; применяется сразу</span></h2>
+    <div class="card">
+      <div id="settings"></div>
+      <div class="bar" style="margin-top:.3rem">
+        <button class="primary" data-act="save-settings">Применить</button>
+        <span id="setmsg" class="muted"></span>
+      </div>
+    </div>
+
+    <h2>История сессий <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">— последние 100 прогонов, в памяти сервиса</span> <span class="rl"><button class="rl" onclick="loadRuns()">⟳ обновить</button></span></h2>
+    <div class="card tbl-card">
+      <table id="runtbl"><thead><tr><th class="chevcol"></th><th>время</th><th>кто</th><th>задача</th><th>статус</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+function tok() { return localStorage.getItem("admtok") || ""; }
+function hdr() { return { "Authorization": "Bearer " + tok(), "Content-Type": "application/json" }; }
+// Кавычки экранируем тоже: значения уезжают в атрибуты data-arg, а там апостроф
+// без экранирования закрыл бы атрибут. В обработчики они не подставляются вовсе.
+const ESCAPES = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"};
+const ESC_RE = new RegExp("[" + Object.keys(ESCAPES).join("") + "]", "g");
+function esc(s) { return (s ?? "").toString().replace(ESC_RE, c => ESCAPES[c]); }
+
+async function api(path, opts) {
+  const r = await fetch(path, Object.assign({ headers: hdr() }, opts || {}));
+  if (r.status === 401) throw new Error("неверный админ-токен");
+  return r;
+}
+
+function saveToken() {
+  localStorage.setItem("admtok", $("#admtok").value.trim());
+  boot();
+}
+
+// Токен лежит в localStorage: переживает перезапуск браузера, стирается только тут.
+function forgetToken() {
+  localStorage.removeItem("admtok");
+  location.reload();
+}
+
+async function boot() {
+  if (!tok()) { $("#authmsg").textContent = "введи админ-токен"; return; }
+  try {
+    await loadUsers();
+    $("#app").style.display = "";
+    $("#authmsg").textContent = "";
+    $("#authmsg").className = "muted";
+    loadSecurity();
+    loadPlugins();
+    loadSettings();
+    loadRuns();
+  } catch (e) {
+    $("#app").style.display = "none";
+    $("#authmsg").textContent = e.message;
+    $("#authmsg").className = "err";
+  }
+}
+
+function setChip(id, state, val, tip) {
+  const c = $(id);
+  c.className = "chip " + state;
+  c.querySelector("b").textContent = val;
+  c.title = tip;
+}
+
+async function loadSecurity() {
+  try {
+    const d = await (await api("/admin/api/security")).json();
+    const fs = d.status || "unknown";
+    if (fs === "green") setChip("#chip-fs", "green", "safe", "Read-only на уровне ядра — запись невозможна.");
+    else if (fs === "red") setChip("#chip-fs", "red", "unsafe", "ФС доступна на запись — подними через штатный systemd-юнит.");
+    else setChip("#chip-fs", "", "unknown", "Режим не определить (не Linux).");
+    const net = d.net_status || "unknown";
+    if (net === "green") setChip("#chip-net", "green", "locked", "Внешняя сеть обрублена ядром; наружу — только через прокси с доменным allowlist.");
+    else if (net === "red") setChip("#chip-net", "red", "open", "Egress открыт — подними через штатный systemd-юнит (нужен cgroup v2).");
+    else setChip("#chip-net", "", "unknown", "Режим не определить.");
+    $("#chips").style.display = "";
+  } catch (e) { $("#chips").style.display = "none"; }
+}
+
+let plugBusy = false;
+function setPlugBusy(b) {
+  plugBusy = b;
+  document.querySelectorAll("#plugtbl input, #plugtbl button").forEach(x => x.disabled = b);
+}
+
+function checklistHtml(items) {
+  if (!items || !items.length) return "";
+  return `<div class="steps">` + items.map(s =>
+    `<div class="step"><span class="pdot ${s.ok ? "ok" : "broken"}">${s.ok ? "✓" : "✗"}</span>
+     <span>${esc(s.name)}</span> <span class="muted">${esc(s.detail || "")}</span></div>`
+  ).join("") + `</div>`;
+}
+
+// Одна форма на два места: описание полей приходит с сервера (plugin_api.field).
+function fieldsHtml(fields, values) {
+  return (fields || []).map(f => `
+    <label style="display:block;margin-bottom:.5rem">
+      <span class="muted">${esc(f.label)}${f.required === false ? " (необязательно)" : ""}</span><br>
+      <input type="${f.secret ? "password" : "text"}" data-field="${esc(f.name)}"
+             placeholder="${esc(f.placeholder || "")}" style="width:100%;max-width:520px"
+             value="${esc((values || {})[f.name] || "")}">
+      ${f.hint ? `<span class="muted" style="font-size:.8rem">${esc(f.hint)}</span>` : ""}
+    </label>`).join("");
+}
+
+async function loadPlugins() {
+  const d = await (await api("/admin/api/plugins")).json();
+  const tb = $("#plugtbl tbody"); tb.innerHTML = "";
+  for (const p of d.plugins) {
+    const failed = p.checklist && p.checklist.length && !p.installed;
+    const mark = p.installed
+      ? `<span class="pdot ok" title="${esc(p.at)}">● установлен</span>`
+      : (failed ? `<span class="pdot broken">● не установлен</span>`
+                : `<span class="pdot off">— не установлен</span>`);
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td><code class="id">${esc(p.name)}</code></td>
+      <td class="muted">${esc(p.desc)}</td>
+      <td>${mark}
+        <button class="rl" data-act="install" data-arg="${esc(p.name)}">${p.installed ? "переустановить" : "Install"}</button>
+        <button class="rl" data-act="uninstall" data-arg="${esc(p.name)}">снять</button>
+        ${p.checklist && p.checklist.length ? `<button class="rl" data-act="checklist" data-arg="${esc(p.name)}">чеклист</button>` : ""}
+      </td>
+      <td><label class="sw"><input type="checkbox" ${p.enabled ? "checked" : ""}
+        ${p.installed ? "" : "disabled"}
+        data-act="switch" data-arg="${esc(p.name)}"><i></i></label></td>`;
+    tb.appendChild(tr);
+
+    const det = document.createElement("tr");
+    det.className = "drow"; det.id = "chk-" + p.name;
+    det.style.display = failed ? "" : "none";     // упало — показываем сразу
+    det.innerHTML = `<td colspan="4"><div class="detail">${checklistHtml(p.checklist)}</div></td>`;
+    tb.appendChild(det);
+
+    if (p.fields && p.fields.length) {          // форму описывает сам плагин
+      const form = document.createElement("tr");
+      form.className = "drow"; form.id = "form-" + p.name; form.style.display = "none";
+      form.innerHTML = `<td colspan="4"><div class="detail" data-form="${esc(p.name)}">
+        ${fieldsHtml(p.fields)}
+        <div class="bar" style="margin-top:.3rem">
+          <button class="primary" data-act="install-form" data-arg="${esc(p.name)}">Установить</button>
+          <button data-act="cancel-form" data-arg="${esc(p.name)}">Отмена</button>
+        </div></div></td>`;
+      tb.appendChild(form);
+    }
+  }
+}
+
+// Делегирование: значение приходит из data-arg готовой строкой, минуя JS-литерал.
+const ACTIONS = {
+  "install": n => installPlugin(n),
+  "install-form": n => installPlugin(n, true),
+  "uninstall": n => uninstallPlugin(n),
+  "checklist": n => toggleChecklist(n),
+  "cancel-form": n => cancelForm(n),
+  "remove-user": n => removeUser(n),
+  "save-settings": () => saveSettings(),
+};
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]");
+  if (el && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el.dataset.arg);
+});
+document.addEventListener("change", e => {
+  const el = e.target.closest('[data-act="switch"]');
+  if (el) switchPlugin(el.dataset.arg, el.checked);
+});
+
+function toggleChecklist(name) {
+  const r = $("#chk-" + name);
+  if (r) r.style.display = r.style.display === "none" ? "" : "none";
+}
+
+async function post(body) {
+  const r = await api("/admin/api/plugins", { method: "POST", body: JSON.stringify(body) });
+  return [r, await r.json()];
+}
+
+function formValues(name) {
+  const box = document.querySelector(`[data-form="${CSS.escape(name)}"]`);
+  const out = {};
+  if (box) box.querySelectorAll("input[data-field]").forEach(i => out[i.dataset.field] = i.value.trim());
+  return out;
+}
+
+async function installPlugin(name, fromForm) {
+  if (plugBusy) return;
+  const form = $("#form-" + name);          // есть форма — сначала показываем её
+  if (form && !fromForm) { form.style.display = ""; return; }
+  const values = fromForm ? formValues(name) : {};
+  setPlugBusy(true);
+  let r, d;
+  try { [r, d] = await post({ name, action: "install", values }); }
+  catch (e) { setPlugBusy(false); alert(e.message); return; }
+  if (d.need_fields) {                   // страховка: обязательное поле пустое
+    setPlugBusy(false);
+    if (form) form.style.display = "";
+    return;
+  }
+  if (!r.ok) alert(d.error || "ошибка");
+  setPlugBusy(false);
+  await loadPlugins();
+}
+
+async function uninstallPlugin(name) {
+  if (plugBusy) return;
+  if (!confirm("Снять установку " + name + "?\n\n"
+    + "Креды будут забыты, плагин выключится.\n"
+    + "Созданная в ресурсе read-only учётка останется — удалить её можно только вручную.")) return;
+  setPlugBusy(true);
+  try { await post({ name, action: "uninstall" }); } catch (e) { alert(e.message); }
+  setPlugBusy(false);
+  await loadPlugins();
+}
+
+async function switchPlugin(name, on) {
+  if (plugBusy) return;
+  setPlugBusy(true);
+  let r, d;
+  try { [r, d] = await post({ name, action: on ? "on" : "off" }); }
+  catch (e) { setPlugBusy(false); alert(e.message); return; }
+  if (!r.ok) alert(d.error || "ошибка");
+  setPlugBusy(false);
+  await loadPlugins();
+}
+
+function cancelForm(name) {
+  const f = $("#form-" + name); if (f) f.style.display = "none";
+}
+
+async function loadSettings() {
+  const d = await (await api("/admin/api/settings")).json();
+  $("#settings").innerHTML = fieldsHtml(d.fields, d.values);
+}
+
+async function saveSettings() {
+  const values = {};
+  $("#settings").querySelectorAll("input[data-field]").forEach(i => values[i.dataset.field] = i.value.trim());
+  const msg = $("#setmsg");
+  msg.className = "muted"; msg.textContent = "применяю…";
+  let r, d;
+  try {
+    r = await api("/admin/api/settings", { method: "POST", body: JSON.stringify({ values }) });
+    d = await r.json();
+  } catch (e) { msg.className = "err"; msg.textContent = e.message; return; }
+  if (!r.ok) { msg.className = "err"; msg.textContent = d.error || "ошибка"; return; }
+  msg.className = "muted";
+  msg.textContent = "сохранено · прокси: " + (d.applied || "") + " · подсети — со следующего прогона агента";
+  $("#settings").innerHTML = fieldsHtml(d.fields, d.values);
+}
+
+async function loadUsers() {
+  const d = await (await api("/admin/api/users")).json();
+  const tb = $("#usertbl tbody"); tb.innerHTML = "";
+  for (const u of d.users) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${esc(u.label)}</td><td class="muted"><code class="id">${esc(u.type)} ${esc(u.fp)}</code></td>
+      <td><button class="danger" data-act="remove-user" data-arg="${esc(u.label)}">удалить</button></td>`;
+    tb.appendChild(tr);
+  }
+  if (!d.users.length) tb.innerHTML = `<tr><td colspan="3" class="muted">нет пользователей</td></tr>`;
+}
+
+async function addUser() {
+  const label = $("#lbl").value.trim();
+  const pubkey = $("#pubkey").value.trim();
+  if (!label || !pubkey) { alert("нужны label и публичный ключ"); return; }
+  const r = await api("/admin/api/users", { method: "POST", body: JSON.stringify({ label, pubkey }) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || "ошибка"); return; }
+  $("#lbl").value = ""; $("#pubkey").value = "";
+  $("#issued").innerHTML = `<div class="tok">Юзер <b>${esc(d.label)}</b> добавлен. Токен — <b>покажется один раз</b>. Отдай инженеру токен и команды:<br><code>${esc(d.token)}</code>
+    <pre style="margin-top:.6rem">ssh -N -L 8765:localhost:8765 srvx-tunnel@${esc(d.host)} -i ~/.ssh/srvx
+claude mcp add --transport http srv-explore http://localhost:8765/mcp \\
+  --header "Authorization: Bearer ${esc(d.token)}"</pre></div>`;
+  loadUsers();
+}
+
+async function removeUser(label) {
+  if (!confirm("Удалить " + label + "? Ключ и все его токены будут сняты.")) return;
+  await api("/admin/api/users/remove", { method: "POST", body: JSON.stringify({ label }) });
+  loadUsers();
+}
+
+async function loadRuns() {
+  const d = await (await api("/admin/api/runs")).json();
+  const tb = $("#runtbl tbody"); tb.innerHTML = "";
+  for (const r of d.runs) {
+    const n = r.steps ? r.steps.length : 0;
+    const cmds = n
+      ? `<div class="steps">` + r.steps.map(s =>
+          `<div class="step"><span class="st ${s.ok ? "done" : "error"}">${s.ok ? "ok" : "deny"}</span> <code>${esc(s.cmd)}</code>${s.ok ? "" : ` <span class="muted">${esc(s.reason)}</span>`}</div>`
+        ).join("") + `</div>`
+      : `<div class="muted">команд нет</div>`;
+    const ans = r.error ? `<pre class="err">${esc(r.error)}</pre>`
+      : (r.result ? `<pre>${esc(r.result)}</pre>` : `<div class="muted">—</div>`);
+    const detail =
+      `<details class="cmds"><summary>команды (${n})</summary>${cmds}</details>` +
+      `<div class="muted" style="margin:.7rem 0 .2rem">ответ:</div>${ans}`;
+
+    const srow = document.createElement("tr");
+    srow.className = "srow";
+    srow.innerHTML = `<td class="chevcol"><span class="chev">▸</span></td>
+      <td class="muted">${esc(r.started)}</td><td>${esc(r.label)}</td><td>${esc(r.task)}</td>
+      <td><span class="st ${esc(r.status)}">${esc(r.status)}</span></td>`;
+    const drow = document.createElement("tr");
+    drow.className = "drow";
+    drow.style.display = "none";
+    drow.innerHTML = `<td colspan="5"><div class="detail">${detail}</div></td>`;
+    srow.addEventListener("click", () => {
+      const open = drow.style.display !== "none";
+      drow.style.display = open ? "none" : "";
+      srow.querySelector(".chev").classList.toggle("open", !open);
+    });
+    tb.appendChild(srow);
+    tb.appendChild(drow);
+  }
+  if (!d.runs.length) tb.innerHTML = `<tr><td colspan="5" class="muted">пока нет прогонов</td></tr>`;
+}
+
+$("#admtok").addEventListener("keydown", e => { if (e.key === "Enter") saveToken(); });
+if (tok()) { $("#admtok").value = tok(); boot(); }
+</script>
+</body>
+</html>
