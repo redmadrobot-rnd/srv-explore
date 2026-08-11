@@ -65,6 +65,12 @@ srv_explore_cmd("docker ps --format '{{.Names}} {{.Status}}'")
 `python3` доустановится сам. В environment нужны `SSH_HOST` / `SSH_USER` (variables)
 и `SSH_KEY` + `CLAUDE_CODE_OAUTH_TOKEN` (secrets).
 
+Если API модели заблокирован для хоста по гео (напр. РФ-адрес → `api.anthropic.com`
+отдаёт 403) — задать secret `SRV_EXPLORE_UPSTREAM_PROXY` (`http://[user:pass@]host:port`):
+tinyproxy пустит через него **только** домены из `SRV_EXPLORE_UPSTREAM_DOMAINS` (по
+умолчанию `api.anthropic.com`), остальной egress агента идёт напрямую. Доменный
+allowlist остаётся на месте и проверяется до пересылки. Пусто — прямой выход.
+
 Админ-токен генерится **на сервере** при первой установке, в лог Actions не попадает:
 
 ```bash
@@ -107,20 +113,20 @@ claude mcp add --transport http srv-explore http://localhost:8765/mcp \
 flowchart TB
   subgraph server["Remote server"]
     subgraph svc["systemd service · root"]
-      MCP["mcp_server.py<br/>MCP · /admin · /"]
-      PROV["provision.py<br/>plugin install"]
-      ST[("StateDir<br/>tokens · plugins · creds")]
+      MCP["mcp_server.py · MCP · /admin · /"]
+      PROV["provision.py · plugin install"]
+      ST[("StateDir · tokens · plugins · creds")]
     end
     subgraph box["Sandbox · srvx-agent, no privileges"]
-      W["agent_worker.py<br/>Claude Agent SDK"]
-      G["guard.py<br/>command hygiene"]
+      W["agent_worker.py · Claude Agent SDK"]
+      G["guard.py · command hygiene"]
     end
-    PX["docker-socket-proxy<br/>POST=0"]
-    TP["tinyproxy<br/>domain allowlist"]
+    PX["docker-socket-proxy · POST=0"]
+    TP["tinyproxy · domain allowlist"]
     RES[("files · logs · docker · DB")]
   end
-  MCP -->|"systemd-run --uid<br/>RO-FS · egress firewall"| W
-  MCP -.->|"creds of enabled<br/>plugins"| W
+  MCP -->|"systemd-run --uid · RO-FS · egress firewall"| W
+  MCP -.->|"creds of enabled plugins"| W
   W --> G --> RES
   W -->|docker| PX --> RES
   W -->|"model API"| TP
