@@ -223,13 +223,17 @@ async def run_agent(task: str, steps: list | None = None) -> tuple[str, list]:
         return result, steps
     # результата нет: статус задачи должен быть error, а не done с обрезком.
     # Собранные шаги не теряются — steps это тот же список, что лежит в job.
-    tail = sandbox.redact((err or out).strip()[:600], sensitive)
+    # Причина: воркер, поймав исключение, кладёт внятный error — берём его. Иначе
+    # (убит по таймауту/сигналу, без события) — ХВОСТ stderr, где реальная ошибка,
+    # а не начало с runpy-боилерплейтом.
+    raw = final.get("error") or (err or out).strip()[-600:]
+    reason = sandbox.redact(raw, sensitive)
     if rc != 0:
         raise RuntimeError(
             f"агент прерван (код {rc}, лимит прогона {sandbox.MAX_SEC}s); "
-            f"успел команд: {len(steps)}. {tail}"
+            f"успел команд: {len(steps)}. {reason}"
         )
-    raise RuntimeError(f"агент не вернул результат. {tail}")
+    raise RuntimeError(f"агент не вернул результат. {reason}")
 
 
 # Сколько держим вызов srv_explore открытым, прежде чем отдать job_id и уйти в poll.

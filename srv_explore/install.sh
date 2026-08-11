@@ -68,6 +68,8 @@ if [ ! -f "$CFG_DIR/env" ]; then
 # CLAUDE_CODE_OAUTH_TOKEN (авторизация модели) — дописывает деплой, не коммитить.
 # SRV_EXPLORE_TRUSTED_* — куда агенту МОЖНО наружу (всё прочее egress обрублен):
 #   _DOMAINS (через прокси, список через запятую), _CIDRS (напрямую, firewall).
+# SRV_EXPLORE_UPSTREAM_PROXY — внешний прокси для egress (обход гео-блока API с
+#   РФ-хоста); tinyproxy шлёт через него уже отфильтрованный трафик. Дописывает деплой.
 EOF
   chmod 0640 "$CFG_DIR/env"
 fi
@@ -83,6 +85,7 @@ ensure_env_kv SRV_EXPLORE_PUBLIC_HOST "$(hostname -I 2>/dev/null | awk '{print $
 ensure_env_kv SRV_EXPLORE_PROXY "http://127.0.0.1:3128"
 ensure_env_kv SRV_EXPLORE_TRUSTED_DOMAINS ""
 ensure_env_kv SRV_EXPLORE_TRUSTED_CIDRS ""
+ensure_env_kv SRV_EXPLORE_UPSTREAM_PROXY ""
 
 # 5c. админ-токен /admin — генерим ОДИН раз
 if ! grep -q "^SRV_EXPLORE_ADMIN_TOKEN=" "$CFG_DIR/env"; then
@@ -158,6 +161,19 @@ Filter "$CFG_DIR/proxy-allow"
 PidFile "/run/srv-explore-proxy/tinyproxy.pid"
 LogLevel Warning
 EOF
+
+# upstream-прокси: задан — tinyproxy шлёт весь проходящий (уже суженный allowlist'ом)
+# egress через него. Так API, заблокированный для РФ-хоста, берётся через внешний
+# выход, а доменный фильтр остаётся здесь и проверяется ДО пересылки. tinyproxy хочет
+# host:port (по желанию user:pass@) — схему из URL срезаем.
+UPSTREAM_PROXY="$(grep -E '^SRV_EXPLORE_UPSTREAM_PROXY=' "$CFG_DIR/env" | cut -d= -f2- || true)"
+if [ -n "$UPSTREAM_PROXY" ]; then
+  UPSTREAM_PROXY="${UPSTREAM_PROXY#http://}"
+  UPSTREAM_PROXY="${UPSTREAM_PROXY#https://}"
+  UPSTREAM_PROXY="${UPSTREAM_PROXY%/}"
+  printf 'upstream http %s\n' "$UPSTREAM_PROXY" >> "$CFG_DIR/tinyproxy.conf"
+  echo "==> egress через upstream-прокси включён"
+fi
 chmod 0644 "$CFG_DIR/tinyproxy.conf"
 
 if command -v tinyproxy >/dev/null 2>&1; then

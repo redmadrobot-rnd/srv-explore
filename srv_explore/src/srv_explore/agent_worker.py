@@ -145,7 +145,23 @@ def main() -> int:
     if not task:
         _emit({"type": "result", "result": "", "error": "empty task"})
         return 1
-    data = asyncio.run(_run(task))
+    try:
+        data = asyncio.run(_run(task))
+    except Exception as e:
+        # Иначе Python печатает сырой трейсбэк в stderr, а родитель берёт его начало
+        # (боилерплейт runpy) — реальная причина (напр. отказ модели/сети) теряется.
+        # Отдаём внятную строку явным событием; хвост трейсбэка — для диагностики.
+        import traceback
+
+        _emit(
+            {
+                "type": "result",
+                "result": "",
+                "error": f"{type(e).__name__}: {e}".strip(),
+                "trace": traceback.format_exc()[-800:],
+            }
+        )
+        return 1
     _emit({"type": "result", "result": data.get("result", "")})
     return 0
 

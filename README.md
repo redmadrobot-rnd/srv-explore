@@ -65,6 +65,11 @@ srv_explore_cmd("docker ps --format '{{.Names}} {{.Status}}'")
 `python3` доустановится сам. В environment нужны `SSH_HOST` / `SSH_USER` (variables)
 и `SSH_KEY` + `CLAUDE_CODE_OAUTH_TOKEN` (secrets).
 
+Если API модели заблокирован для хоста по гео (напр. РФ-адрес → `api.anthropic.com`
+отдаёт 403) — задать secret `SRV_EXPLORE_UPSTREAM_PROXY` (`http://[user:pass@]host:port`):
+tinyproxy пустит через него уже отфильтренный allowlist'ом egress, доменный контроль
+остаётся на месте. Пусто — прямой выход.
+
 Админ-токен генерится **на сервере** при первой установке, в лог Actions не попадает:
 
 ```bash
