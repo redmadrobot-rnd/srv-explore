@@ -67,8 +67,9 @@ srv_explore_cmd("docker ps --format '{{.Names}} {{.Status}}'")
 
 Если API модели заблокирован для хоста по гео (напр. РФ-адрес → `api.anthropic.com`
 отдаёт 403) — задать secret `SRV_EXPLORE_UPSTREAM_PROXY` (`http://[user:pass@]host:port`):
-tinyproxy пустит через него уже отфильтренный allowlist'ом egress, доменный контроль
-остаётся на месте. Пусто — прямой выход.
+tinyproxy пустит через него **только** домены из `SRV_EXPLORE_UPSTREAM_DOMAINS` (по
+умолчанию `api.anthropic.com`), остальной egress агента идёт напрямую. Доменный
+allowlist остаётся на месте и проверяется до пересылки. Пусто — прямой выход.
 
 Админ-токен генерится **на сервере** при первой установке, в лог Actions не попадает:
 
