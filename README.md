@@ -101,9 +101,16 @@ ssh -N -L 8765:localhost:8765 root@<host>     # держать открытым
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/srvx -N ""            # публичную часть — админу
 ssh -N -L 8765:localhost:8765 srvx-tunnel@<host> -i ~/.ssh/srvx
-claude mcp add --transport http srv-explore http://localhost:8765/mcp \
-  --header "Authorization: Bearer srvx_..."
+export SRVX_TOKEN=srvx_...                             # токен из админки — в env, не в конфиг
+claude mcp add --scope project --transport http srv-explore http://localhost:8765/mcp \
+  --header 'Authorization: Bearer ${SRVX_TOKEN}'
 ```
+
+`--scope project` кладёт сервер в `.mcp.json` репозитория (а не глобально в `~/.claude.json`)
+— доступен только в этом проекте. Токен подставляется из env `${SRVX_TOKEN}` на старте
+`claude`, в файл не пишется, поэтому `.mcp.json` безопасно коммитить. Кавычки вокруг заголовка
+**одинарные** — иначе шелл подставит токен строкой прямо в файл. Сервер активируется при
+следующем запуске `claude` (спросит approve); проверить — `claude mcp list`.
 
 ---
 
