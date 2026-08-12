@@ -47,8 +47,14 @@
             <button class="copy" data-act="copy" title="Копировать" aria-label="Копировать команду"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button></div></li>
         <li><b>Подключи MCP к своему агенту</b> — появятся два инструмента:
           <code>srv_explore(task)</code> (задача словами) и <code>srv_explore_cmd(cmd)</code>
-          (одна команда, дословный вывод).
-          <div class="cmd"><pre>claude mcp add --transport http srv-explore http://localhost:8765/mcp   --header "Authorization: Bearer srvx_…"</pre>
+          (одна команда, дословный вывод). Токен — в переменную окружения, не в файл;
+          <code>--scope project</code> кладёт сервер в <code>.mcp.json</code> проекта (не глобально).
+          Имя <code>srv-explore</code> — любое: дай каждому серверу своё
+          (<code>dev-explorer</code>, <code>prod-explorer</code>) — с разными локальными портами туннеля
+          они живут рядом.
+          <div class="cmd"><pre>export SRVX_TOKEN=srvx_…
+claude mcp add --scope project --transport http srv-explore http://localhost:8765/mcp \
+  --header 'Authorization: Bearer ${SRVX_TOKEN}'</pre>
             <button class="copy" data-act="copy" title="Копировать" aria-label="Копировать команду"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button></div></li>
         <li><b>Или работай отсюда</b> — вставь токен на вкладке <b>account</b> и спрашивай
           на вкладке <b>explore</b>, без MCP.</li>
