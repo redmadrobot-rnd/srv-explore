@@ -321,8 +321,9 @@ async function addUser() {
   $("#lbl").value = ""; $("#pubkey").value = "";
   $("#issued").innerHTML = `<div class="tok">Юзер <b>${esc(d.label)}</b> добавлен. Токен — <b>покажется один раз</b>. Отдай инженеру токен и команды:<br><code>${esc(d.token)}</code>
     <pre style="margin-top:.6rem">ssh -N -L 8765:localhost:8765 srvx-tunnel@${esc(d.host)} -i ~/.ssh/srvx
-claude mcp add --transport http srv-explore http://localhost:8765/mcp \\
-  --header "Authorization: Bearer ${esc(d.token)}"</pre></div>`;
+claude mcp add --scope local --transport http srv-explore http://localhost:8765/mcp \\
+  --header "Authorization: Bearer ${esc(d.token)}"</pre>
+    <div class="muted" style="margin-top:.4rem;font-size:.8rem">имя <code>srv-explore</code> — любое: <code>dev-explorer</code>, <code>prod-explorer</code> с разными локальными портами живут рядом. <code>--scope local</code> кладёт сервер в <code>~/.claude.json</code> — приватно, не в репозиторий.</div></div>`;
   loadUsers();
 }
 

@@ -101,9 +101,18 @@ ssh -N -L 8765:localhost:8765 root@<host>     # держать открытым
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/srvx -N ""            # публичную часть — админу
 ssh -N -L 8765:localhost:8765 srvx-tunnel@<host> -i ~/.ssh/srvx
-claude mcp add --transport http srv-explore http://localhost:8765/mcp \
+claude mcp add --scope local --transport http srv-explore http://localhost:8765/mcp \
   --header "Authorization: Bearer srvx_..."
 ```
+
+`--scope local` (дефолт, можно опустить) кладёт сервер в `~/.claude.json` — приватно,
+**не в репозиторий**, только для этого проекта. Токен персональный (на твой SSH-ключ) —
+делить и коммитить его нельзя, поэтому конфиг местный, а не общий `.mcp.json`. Сервер
+активируется при следующем запуске `claude`; проверить — `claude mcp list`.
+
+Имя `srv-explore` в команде — произвольное. На каждый сервер дай своё
+(`dev-explorer`, `prod-explorer`) и свой локальный порт туннеля (`8765`, `8766`, с тем же
+портом в `--transport http … localhost:<порт>/mcp`) — тогда несколько серверов живут рядом.
 
 ---
 
