@@ -33,7 +33,9 @@ install -d -m 0750 "$CFG_DIR"
 install -d -m 0750 "$STATE_DIR"
 
 # 3. код: на хост уезжает только пакет, бандл (install.sh, systemd, requirements)
-# остаётся в чекауте
+# остаётся в чекауте. Сервис стопаем до sync: живой процесс досыпает .pyc в
+# __pycache__ и гонкой ловит rm ("Directory not empty"); в конце — restart.
+systemctl stop srv-explore.service 2>/dev/null || true
 rm -rf "$APP_DIR/srv_explore"
 cp -r "$PKG" "$APP_DIR/srv_explore"
 find "$APP_DIR/srv_explore" -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
