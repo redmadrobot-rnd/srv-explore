@@ -33,9 +33,13 @@ install -d -m 0750 "$CFG_DIR"
 install -d -m 0750 "$STATE_DIR"
 
 # 3. код: на хост уезжает только пакет, бандл (install.sh, systemd, requirements)
-# остаётся в чекауте
+# остаётся в чекауте. Сервис стопаем до sync: живой процесс досыпает .pyc в
+# __pycache__ и гонкой ловит rm ("Directory not empty"); в конце — restart.
+systemctl stop srv-explore.service 2>/dev/null || true
 rm -rf "$APP_DIR/srv_explore"
-cp -r "$PKG" "$APP_DIR/srv_explore"
+# -T: класть содержимое пакета плоско В каталог, а не создавать вложенный
+# srv_explore/srv_explore, если цель уцелела (иначе -m srv_explore.mcp_server не найдёт пакет).
+cp -rT "$PKG" "$APP_DIR/srv_explore"
 find "$APP_DIR/srv_explore" -type d -name __pycache__ -prune -exec rm -rf {} + 2>/dev/null || true
 
 # 4. интерпретатор + venv + зависимости. Одна проверка на оба случая: нет python3
@@ -84,7 +88,14 @@ ensure_env_kv SRV_EXPLORE_PROMPT "$APP_DIR/srv_explore/agent_prompt.md"
 ensure_env_kv SRV_EXPLORE_TOKENS "$STATE_DIR/tokens.json"
 ensure_env_kv SRV_EXPLORE_PLUGIN_STATE "$STATE_DIR/plugins.json"
 ensure_env_kv SRV_EXPLORE_PUBLIC_HOST "$(hostname -I 2>/dev/null | awk '{print $1}')"
-ensure_env_kv SRV_EXPLORE_PROXY "http://127.0.0.1:3128"
+# порт egress-прокси админ может переопределить (SRV_EXPLORE_PROXY_PORT), дефолт 3129:
+# 3128 часто занят чужим squid и т.п. Сам URL SRV_EXPLORE_PROXY — install-производное от
+# порта, потому перезаписывается (не ensure): иначе старое значение на хосте не сменится.
+PROXY_PORT="$(grep -E '^SRV_EXPLORE_PROXY_PORT=' "$CFG_DIR/env" | cut -d= -f2- || true)"
+[ -n "$PROXY_PORT" ] || PROXY_PORT=3129
+ensure_env_kv SRV_EXPLORE_PROXY_PORT "$PROXY_PORT"
+sed -i '/^SRV_EXPLORE_PROXY=/d' "$CFG_DIR/env"
+printf 'SRV_EXPLORE_PROXY=http://127.0.0.1:%s\n' "$PROXY_PORT" >> "$CFG_DIR/env"
 ensure_env_kv SRV_EXPLORE_TRUSTED_DOMAINS ""
 ensure_env_kv SRV_EXPLORE_TRUSTED_CIDRS ""
 ensure_env_kv SRV_EXPLORE_UPSTREAM_PROXY ""
@@ -127,7 +138,8 @@ fi
 
 # 6b. egress форвард-прокси (tinyproxy): песочница агента рубит внешку (firewall), наружу
 # (API модели + доверенные домены) агент ходит ТОЛЬКО через него. FilterDefaultDeny — всё,
-# что не в allowlist, режется. Дефолтный сервис пакета глушим, крутим свой на 127.0.0.1:3128.
+# что не в allowlist, режется. Дефолтный сервис пакета глушим, крутим свой на
+# 127.0.0.1:$PROXY_PORT (дефолт 3129 — 3128 бывает занят чужим squid).
 if ! command -v tinyproxy >/dev/null 2>&1; then
   if command -v apt-get >/dev/null 2>&1; then
     echo "==> ставлю tinyproxy (форвард-прокси egress)"
@@ -151,7 +163,7 @@ TRUSTED_DOMAINS="$(grep -E '^SRV_EXPLORE_TRUSTED_DOMAINS=' "$CFG_DIR/env" | cut 
 chmod 0644 "$CFG_DIR/proxy-allow.base"
 
 cat > "$CFG_DIR/tinyproxy.conf" <<EOF
-Port 3128
+Port $PROXY_PORT
 Listen 127.0.0.1
 Timeout 600
 Allow 127.0.0.1

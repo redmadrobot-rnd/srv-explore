@@ -21,7 +21,7 @@ MAX_SEC = os.environ.get("SRV_EXPLORE_AGENT_MAX_SEC", "600")  # анти-под�
 # Жёсткий потолок вывода: `yes` или дамп гигабайтного лога иначе копит в память до
 # RuntimeMaxSec, прежде чем mcp_server срежет до 30 КБ. Читаем с капом и убиваем юнит.
 MAX_OUTPUT_BYTES = int(os.environ.get("SRV_EXPLORE_MAX_OUTPUT_BYTES", str(1_000_000)))
-PROXY = os.environ.get("SRV_EXPLORE_PROXY", "http://127.0.0.1:3128")
+PROXY = os.environ.get("SRV_EXPLORE_PROXY", "http://127.0.0.1:3129")
 # каталог-родитель пакета srv_explore — чтобы `python -m srv_explore.*` в песочнице
 # нашёл пакет независимо от cwd (RO-FS читать не мешает).
 _PKG_PARENT = str(Path(__file__).resolve().parent.parent)
