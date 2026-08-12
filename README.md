@@ -101,22 +101,20 @@ ssh -N -L 8765:localhost:8765 root@<host>     # держать открытым
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/srvx -N ""            # публичную часть — админу
 ssh -N -L 8765:localhost:8765 srvx-tunnel@<host> -i ~/.ssh/srvx
-export SRVX_TOKEN=srvx_...                             # токен из админки — в env, не в конфиг
-claude mcp add --scope project --transport http srv-explore http://localhost:8765/mcp \
-  --header 'Authorization: Bearer ${SRVX_TOKEN}'
+claude mcp add --scope local --transport http srv-explore http://localhost:8765/mcp \
+  --header "Authorization: Bearer srvx_..."
 ```
 
-`--scope project` кладёт сервер в `.mcp.json` репозитория (а не глобально в `~/.claude.json`)
-— доступен только в этом проекте. Токен подставляется из env `${SRVX_TOKEN}` на старте
-`claude`, в файл не пишется, поэтому `.mcp.json` безопасно коммитить. Кавычки вокруг заголовка
-**одинарные** — иначе шелл подставит токен строкой прямо в файл. Сервер активируется при
-следующем запуске `claude` (спросит approve); проверить — `claude mcp list`.
+`--scope local` (дефолт, можно опустить) кладёт сервер в `~/.claude.json` — приватно,
+**не в репозиторий**, только для этого проекта. Токен персональный (на твой SSH-ключ) —
+делить и коммитить его нельзя, поэтому конфиг местный, а не общий `.mcp.json`. Сервер
+активируется при следующем запуске `claude`; проверить — `claude mcp list`.
 
 Имя `srv-explore` в команде — произвольное. На каждый сервер дай своё
 (`dev-explorer`, `prod-explorer`) и свой локальный порт туннеля (`8765`, `8766`, с тем же
-портом в `--transport http … localhost:<порт>/mcp`) — тогда несколько серверов живут рядом
-в одном `.mcp.json`. Страница агента (`/`) подставляет реальный `<host>` в команды сама, если
-задан `SRV_EXPLORE_PUBLIC_HOST` (деплой берёт его из `SSH_HOST`).
+портом в `--transport http … localhost:<порт>/mcp`) — тогда несколько серверов живут рядом.
+Страница агента (`/`) подставляет реальный `<host>` в команды сама, если задан
+`SRV_EXPLORE_PUBLIC_HOST` (деплой берёт его из `SSH_HOST`).
 
 ---
 
