@@ -334,10 +334,13 @@ async function addUser() {
   const d = await r.json();
   if (!r.ok) { alert(d.error || "ошибка"); return; }
   $("#lbl").value = ""; $("#pubkey").value = "";
-  $("#issued").innerHTML = `<div class="tok">Юзер <b>${esc(d.label)}</b> добавлен — отдай инженеру. <b>Токен показывается один раз:</b>
-    <div class="cmd"><pre style="white-space:pre-wrap;word-break:break-all">${esc(d.token)}</pre>${COPY_BTN}</div>
-    <div class="muted" style="margin:.55rem 0 .25rem">Пусть поднимет туннель своим ключом (подставь свой путь вместо <code>your_ssh_key</code>) и откроет <code>http://localhost:8765/</code> — вкладка <b>main</b> покажет, как подключить MCP этим токеном.</div>
-    <div class="cmd"><pre>ssh -N -L 8765:localhost:8765 srvx-tunnel@${esc(d.host)} -i your_ssh_key</pre>${COPY_BTN}</div></div>`;
+  $("#issued").innerHTML = `<div class="tok">Юзер <b>${esc(d.label)}</b> добавлен — отдай инженеру инструкцию ниже. <b>Токен вшит в шаг 2, показывается один раз.</b>
+    <div class="muted" style="margin:.55rem 0 .35rem"><b>Доступ к серверу для твоего кодового агента — read-only через MCP. Настрой в 3 шага</b> (нужен установленный <code>claude</code>):</div>
+    <div class="muted" style="margin:.35rem 0 .2rem"><b>1.</b> Туннель — держи открытым в отдельном окне (<code>your_ssh_key</code> = путь к твоему приватному ключу, публичную часть ты уже отдал админу):</div>
+    <div class="cmd"><pre>ssh -N -L 8765:localhost:8765 srvx-tunnel@${esc(d.host)} -i your_ssh_key</pre>${COPY_BTN}</div>
+    <div class="muted" style="margin:.35rem 0 .2rem"><b>2.</b> Подключи MCP-сервер:</div>
+    <div class="cmd"><pre style="white-space:pre-wrap;word-break:break-all">claude mcp add --scope local --transport http srv-explore http://localhost:8765/mcp --header "Authorization: Bearer ${esc(d.token)}"</pre>${COPY_BTN}</div>
+    <div class="muted" style="margin:.35rem 0 .2rem"><b>3.</b> Проверь — <code>claude mcp list</code> покажет <code>srv-explore</code>. Как пользоваться и примеры запросов — открой <code>http://localhost:8765/</code>.</div></div>`;
   loadUsers();
 }
 
