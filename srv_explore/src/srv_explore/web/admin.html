@@ -71,6 +71,20 @@ const ESCAPES = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#
 const ESC_RE = new RegExp("[" + Object.keys(ESCAPES).join("") + "]", "g");
 function esc(s) { return (s ?? "").toString().replace(ESC_RE, c => ESCAPES[c]); }
 
+// Кнопка копирования: текст берётся из соседнего <pre> в .cmd (стили — общий ui.css).
+const COPY_BTN = `<button class="copy" data-act="copy" title="Копировать" aria-label="Копировать"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>`;
+async function copyCmd(_arg, btn) {
+  const text = btn.closest(".cmd").querySelector("pre").textContent;
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {                       // нет clipboard API (старый браузер, не https)
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); ta.remove();
+  }
+  btn.classList.add("done"); btn.title = "Скопировано";
+  setTimeout(() => { btn.classList.remove("done"); btn.title = "Копировать"; }, 1400);
+}
+
 async function api(path, opts) {
   const r = await fetch(path, Object.assign({ headers: hdr() }, opts || {}));
   if (r.status === 401) throw new Error("неверный админ-токен");
@@ -206,10 +220,11 @@ const ACTIONS = {
   "cancel-form": n => cancelForm(n),
   "remove-user": n => removeUser(n),
   "save-settings": () => saveSettings(),
+  "copy": copyCmd,
 };
 document.addEventListener("click", e => {
   const el = e.target.closest("[data-act]");
-  if (el && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el.dataset.arg);
+  if (el && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el.dataset.arg, el);
 });
 document.addEventListener("change", e => {
   const el = e.target.closest('[data-act="switch"]');
@@ -319,11 +334,10 @@ async function addUser() {
   const d = await r.json();
   if (!r.ok) { alert(d.error || "ошибка"); return; }
   $("#lbl").value = ""; $("#pubkey").value = "";
-  $("#issued").innerHTML = `<div class="tok">Юзер <b>${esc(d.label)}</b> добавлен. Токен — <b>покажется один раз</b>. Отдай инженеру токен и команды:<br><code>${esc(d.token)}</code>
-    <pre style="margin-top:.6rem">ssh -N -L 8765:localhost:8765 srvx-tunnel@${esc(d.host)} -i ~/.ssh/srvx
-claude mcp add --scope local --transport http srv-explore http://localhost:8765/mcp \\
-  --header "Authorization: Bearer ${esc(d.token)}"</pre>
-    <div class="muted" style="margin-top:.4rem;font-size:.8rem">имя <code>srv-explore</code> — любое: <code>dev-explorer</code>, <code>prod-explorer</code> с разными локальными портами живут рядом. <code>--scope local</code> кладёт сервер в <code>~/.claude.json</code> — приватно, не в репозиторий.</div></div>`;
+  $("#issued").innerHTML = `<div class="tok">Юзер <b>${esc(d.label)}</b> добавлен — отдай инженеру. <b>Токен показывается один раз:</b>
+    <div class="cmd"><pre style="white-space:pre-wrap;word-break:break-all">${esc(d.token)}</pre>${COPY_BTN}</div>
+    <div class="muted" style="margin:.55rem 0 .25rem">Пусть поднимет туннель своим ключом (подставь свой путь вместо <code>your_ssh_key</code>) и откроет <code>http://localhost:8765/</code> — вкладка <b>main</b> покажет, как подключить MCP этим токеном.</div>
+    <div class="cmd"><pre>ssh -N -L 8765:localhost:8765 srvx-tunnel@${esc(d.host)} -i your_ssh_key</pre>${COPY_BTN}</div></div>`;
   loadUsers();
 }
 

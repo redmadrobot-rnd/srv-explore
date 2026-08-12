@@ -51,11 +51,13 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # внешний egress-прокси (обход гео-блока API с РФ-хоста); пусто — прямой выход.
           SRV_EXPLORE_UPSTREAM_PROXY: ${{ secrets.SRV_EXPLORE_UPSTREAM_PROXY }}
+          # адрес подключения = публичный host для команды туннеля в онбординге инженеру.
+          SRV_EXPLORE_PUBLIC_HOST: ${{ vars.SSH_HOST }}
         with:
           host: ${{ vars.SSH_HOST }}
           username: ${{ vars.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          envs: REPO_DIR,CLAUDE_CODE_OAUTH_TOKEN,SRV_EXPLORE_UPSTREAM_PROXY
+          envs: REPO_DIR,CLAUDE_CODE_OAUTH_TOKEN,SRV_EXPLORE_UPSTREAM_PROXY,SRV_EXPLORE_PUBLIC_HOST
           script: |
             set -euo pipefail
             SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
@@ -63,10 +65,11 @@ jobs:
             $SUDO bash "$REPO_DIR/srv_explore/install.sh"
             # секреты из Environment вписываем delete+append (смена значения применяется,
             # в отличие от ensure_env_kv, который пишет только при отсутствии ключа).
-            $SUDO sed -i '/^CLAUDE_CODE_OAUTH_TOKEN=/d;/^SRV_EXPLORE_UPSTREAM_PROXY=/d' /etc/srv-explore/env
+            $SUDO sed -i '/^CLAUDE_CODE_OAUTH_TOKEN=/d;/^SRV_EXPLORE_UPSTREAM_PROXY=/d;/^SRV_EXPLORE_PUBLIC_HOST=/d' /etc/srv-explore/env
             {
               printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "$CLAUDE_CODE_OAUTH_TOKEN"
               printf 'SRV_EXPLORE_UPSTREAM_PROXY=%s\n' "$SRV_EXPLORE_UPSTREAM_PROXY"
+              printf 'SRV_EXPLORE_PUBLIC_HOST=%s\n' "$SRV_EXPLORE_PUBLIC_HOST"
             } | $SUDO tee -a /etc/srv-explore/env >/dev/null
             # 2-й прогон: видит upstream-прокси в env и вшивает его в tinyproxy.conf
             # (идемпотентно; apt/pip уже удовлетворены — быстрый проход).

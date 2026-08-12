@@ -99,8 +99,8 @@ ssh -N -L 8765:localhost:8765 root@<host>     # держать открытым
 из браузера.
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/srvx -N ""            # публичную часть — админу
-ssh -N -L 8765:localhost:8765 srvx-tunnel@<host> -i ~/.ssh/srvx
+ssh-keygen -t ed25519 -f your_ssh_key -N ""           # публичную часть — админу
+ssh -N -L 8765:localhost:8765 srvx-tunnel@<host> -i your_ssh_key
 claude mcp add --scope local --transport http srv-explore http://localhost:8765/mcp \
   --header "Authorization: Bearer srvx_..."
 ```

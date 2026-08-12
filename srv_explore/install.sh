@@ -87,7 +87,9 @@ ensure_env_kv SRV_EXPLORE_CWD /
 ensure_env_kv SRV_EXPLORE_PROMPT "$APP_DIR/srv_explore/agent_prompt.md"
 ensure_env_kv SRV_EXPLORE_TOKENS "$STATE_DIR/tokens.json"
 ensure_env_kv SRV_EXPLORE_PLUGIN_STATE "$STATE_DIR/plugins.json"
-ensure_env_kv SRV_EXPLORE_PUBLIC_HOST "$(hostname -I 2>/dev/null | awk '{print $1}')"
+# SRV_EXPLORE_PUBLIC_HOST в онбординге инженеру (команда туннеля). Деплой вписывает сюда
+# SSH_HOST — реальный адрес подключения; при ручной установке ключа нет и код отдаёт
+# плейсхолдер <host>. Локальный hostname -I тут не годится: отдаёт внутренний IP.
 # порт egress-прокси админ может переопределить (SRV_EXPLORE_PROXY_PORT), дефолт 3129:
 # 3128 часто занят чужим squid и т.п. Сам URL SRV_EXPLORE_PROXY — install-производное от
 # порта, потому перезаписывается (не ensure): иначе старое значение на хосте не сменится.
