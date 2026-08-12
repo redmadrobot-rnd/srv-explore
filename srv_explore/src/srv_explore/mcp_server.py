@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import html
 import json
 import os
 import secrets
@@ -564,7 +565,14 @@ def build_app(store: TokenStore | None = None):
         return HTMLResponse(body, headers=NO_STORE)
 
     async def ui_page(request):  # noqa: ARG001
-        return _page(UI_PAGE, "<h1>srv-explore</h1><p>ui.html не найден</p>")
+        try:
+            body = UI_PAGE.read_text(encoding="utf-8")
+        except OSError:
+            body = "<h1>srv-explore</h1><p>ui.html не найден</p>"
+        # плейсхолдер <host> (в разметке экранирован) → публичный адрес из env;
+        # не задан — public_host() вернёт литерал "<host>", замена станет no-op.
+        body = body.replace("&lt;host&gt;", html.escape(public_host()))
+        return HTMLResponse(body, headers=NO_STORE)
 
     def _asset(path: Path, media: str, fallback: str = ""):
         try:
