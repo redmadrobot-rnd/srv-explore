@@ -40,10 +40,10 @@
       <ol class="steps-num">
         <li><b>Запроси доступ у администратора</b> — отдай ему публичную часть своего
           SSH-ключа, получишь токен <code>srvx_…</code>. Ключа нет — сделай:
-          <div class="cmd"><pre>ssh-keygen -t ed25519 -f ~/.ssh/srvx -N ""</pre>
+          <div class="cmd"><pre>ssh-keygen -t ed25519 -f your_ssh_key -N ""</pre>
             <button class="copy" data-act="copy" title="Копировать" aria-label="Копировать команду"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button></div></li>
         <li><b>Подними туннель</b> — сервис слушает только loopback, публичного порта нет.
-          <div class="cmd"><pre>ssh -N -L 8765:localhost:8765 srvx-tunnel@&lt;host&gt; -i ~/.ssh/srvx</pre>
+          <div class="cmd"><pre>ssh -N -L 8765:localhost:8765 srvx-tunnel@&lt;host&gt; -i your_ssh_key</pre>
             <button class="copy" data-act="copy" title="Копировать" aria-label="Копировать команду"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button></div></li>
         <li><b>Подключи MCP к своему агенту</b> — появятся два инструмента:
           <code>srv_explore(task)</code> (задача словами) и <code>srv_explore_cmd(cmd)</code>
