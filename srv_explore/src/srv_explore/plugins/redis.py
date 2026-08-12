@@ -80,9 +80,18 @@ def install(ctx):
     # переустановку (set не в @dangerous) и SET-проба ниже прошла бы ложно-зелёной.
     # `reset` сносит ВСЁ (правила, пароли, ключи, каналы), второй SETUSER строит RO
     # с нуля: только @read по всем ключам, без @dangerous и без каналов.
+    # RO + безопасная интроспекция. `+@read` — чтение ключей; `-@dangerous` рубит
+    # админ/деструктив (FLUSHALL, CONFIG SET, DEBUG, SHUTDOWN, KEYS, CLIENT KILL…).
+    # Затем точечно возвращаем read-only диагностику, которую -@dangerous забрал бы
+    # (INFO, статы клиентов/памяти, slowlog, latency). Порядок важен: эти `+` идут
+    # ПОСЛЕ `-@dangerous`, иначе он их снова снимет. `CONFIG GET` НЕ даём — он читает
+    # requirepass/masterauth (утечка кредов). SET/DEL остаются под запретом.
     setuser = (
         f"ACL SETUSER {RO_USER} reset\n"
-        f"ACL SETUSER {RO_USER} on >{pw} ~* +@read -@dangerous\n"
+        f"ACL SETUSER {RO_USER} on >{pw} ~* +@read +@connection -@dangerous "
+        f"+info +command +client|list +client|info +client|getname "
+        f"+memory|usage +memory|stats +memory|doctor "
+        f"+slowlog|get +latency|latest +latency|history\n"
     )
     rc, out, err = _cli(ctx, admin_dsn, [], stdin_cmd=setuser)
     created = rc == 0 and "ERR" not in (out + err).upper()
