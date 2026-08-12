@@ -113,8 +113,6 @@ claude mcp add --scope local --transport http srv-explore http://localhost:8765/
 Имя `srv-explore` в команде — произвольное. На каждый сервер дай своё
 (`dev-explorer`, `prod-explorer`) и свой локальный порт туннеля (`8765`, `8766`, с тем же
 портом в `--transport http … localhost:<порт>/mcp`) — тогда несколько серверов живут рядом.
-Страница агента (`/`) подставляет реальный `<host>` в команды сама, если задан
-`SRV_EXPLORE_PUBLIC_HOST` (деплой берёт его из `SSH_HOST`).
 
 ---
 

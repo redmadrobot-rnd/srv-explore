@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
-import html
 import json
 import os
 import secrets
@@ -565,12 +564,7 @@ def build_app(store: TokenStore | None = None):
         return HTMLResponse(body, headers=NO_STORE)
 
     async def ui_page(request):  # noqa: ARG001
-        resp = _page(UI_PAGE, "<h1>srv-explore</h1><p>ui.html не найден</p>")
-        host = public_host()
-        if host != "<host>":  # знаем публичный host — подставим вместо плейсхолдера
-            body = resp.body.decode("utf-8").replace("&lt;host&gt;", html.escape(host))
-            resp = HTMLResponse(body, headers=NO_STORE)
-        return resp
+        return _page(UI_PAGE, "<h1>srv-explore</h1><p>ui.html не найден</p>")
 
     def _asset(path: Path, media: str, fallback: str = ""):
         try:
